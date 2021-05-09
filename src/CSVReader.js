@@ -1,11 +1,13 @@
 import React, { Component } from 'react';
 import { CSVReader } from 'react-papaparse';
-import styled from 'styled-components';
-import { useTable } from 'react-table';
+import { Alert, Button, Table } from 'react-bootstrap';
+
+import 'bootstrap/dist/css/bootstrap.min.css';
+
 
 export default class CSVReader2 extends Component {
     state = {
-        books: null
+        books: []
     }
 
     handleOnDrop = (data) => {
@@ -24,16 +26,18 @@ export default class CSVReader2 extends Component {
         console.log('---------------------------');
         console.log(data);
         console.log('---------------------------');
+        this.setState({
+            books: []
+        })
 
     };
 
-    parseData = () => {
-        if (this.books == null) {
-            alert("No CSV Loaded");
-        }
-        else {
-            this.forceUpdate();
-        }
+    getBookCount() {
+        return this.state.books.length
+    }
+
+    getAuthorCount() {
+        return Array.from(new Set(this.state.books.map(book => book.data["Author"]))).length
     }
 
     async fetchGender(author) {
@@ -97,7 +101,11 @@ export default class CSVReader2 extends Component {
         return (
 
             <>
-                <h5>Click and Drag Upload</h5>
+                <h3>Step 1: Import Goodreads Data</h3>
+                <Alert variant="info">
+                    See {' '}
+                    <Alert.Link href="https://help.goodreads.com/s/article/How-do-I-import-or-export-my-books-1553870934590">here</Alert.Link> for how to export data as CSV from Goodreads.
+                </Alert>
                 <CSVReader
                     onDrop={this.handleOnDrop}
                     onError={this.handleOnError}
@@ -109,19 +117,30 @@ export default class CSVReader2 extends Component {
                         preview: 10
                     }}
                 >
-                    <span>Drop CSV file here or click to upload.</span>
+                    <span>Drop exported Goodreads CSV file here or click to upload.</span>
                 </CSVReader>
-                <button onClick={this.parseData}>
-                    parseData
-                </button>
-                <button onClick={async () => { await this.fetchGenders(); }}>fetchGenders</button>
                 <div>
-                    <h1 id='title'>No. of books read by author gender</h1>
-                    <table id='students'>
+                    <p>No. of books: {this.getBookCount()}</p>
+                    <p>No. of authors: {this.getAuthorCount()}</p>
+                </div>
+                <Button onClick={async () => { await this.fetchGenders(); }}><h5>Step 2: Do the thing!</h5></Button>
+                <div>
+                    <h3 id='title'>No. of books read by author gender</h3>
+                    <Table
+                        variant="default"
+                        style={{}}
+                        striped
+                        bordered
+                    // responsive
+                    >
+                        <thead>
+                            <tr><td>Gender</td>
+                                <td>Count</td></tr>
+                        </thead>
                         <tbody>
                             {this.renderBooksData()}
                         </tbody>
-                    </table>
+                    </Table>
                 </div>
             </>
         );
