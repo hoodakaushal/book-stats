@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import { CSVReader } from 'react-papaparse';
 import { Alert, Button, Table } from 'react-bootstrap';
 
+
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 
@@ -12,8 +13,14 @@ export default class CSVReader2 extends Component {
 
     handleOnDrop = (data) => {
         console.log('---------------------------');
-        this.setState({ books: data })
-        console.log(this.books);
+        var books = []
+        data.forEach((book) => {
+            if (book.data["Exclusive Shelf"] == "read") {
+                books.push(book)
+            }
+        })
+        this.setState({ books: books })
+        console.log(data);
         console.log('---------------------------');
     };
 
@@ -41,30 +48,39 @@ export default class CSVReader2 extends Component {
     }
 
     async fetchGender(author) {
-        var resp = await fetch("https://api.genderize.io?name=".concat(encodeURI(author.split(" ")[0])))
+        //https://book-stats-backend.herokuapp.com/author/gender?name=
+        //http://localhost:5000/author/gender?name=
+        var resp = await fetch("https://book-stats-backend.herokuapp.com/author/gender?name=".concat(encodeURI(author)))
         var data = await resp.json()
         console.log(data)
         var gender = await data["gender"]
         return [author, gender]
     }
 
+    async fetchAllGenders(authors) {
+        // https://book-stats-backend.herokuapp.com/author/gender-bulk
+        // http://localhost:5000/author/gender-bulk
+        var resp = await fetch("https://book-stats-backend.herokuapp.com/author/gender-bulk", {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              },
+            body: JSON.stringify(authors)
+          })
+        var data = await resp.json()
+        console.log(data)
+        var authorsMap = new Map(Object.entries(data))
+        return new Map(Array.from(authorsMap, ([k, v]) => ([k, v[0] || "unknown"])))
+    }
+
     async fetchGenders() {
         if (this.state.books) {
             var authors = Array.from(new Set(this.state.books.map(book => book.data["Author"])))
-            var authorGenders = new Map();
-            var promises = []
-            for (var i = 0; i < authors.length; i++) {
-                promises.push(this.fetchGender(authors[i])
-                )
-            }
-
-            var result = await Promise.all(promises)
-            result.forEach(res => {
-                authorGenders.set(res[0], res[1] || "unknown")
-            })
+            var authorGenders = await this.fetchAllGenders(authors)
             console.log(authors);
             console.log(authorGenders);
-            console.log(result)
+            // console.log(result)
             this.setState({ genders: authorGenders })
         } else {
             alert("Load books first");
@@ -77,11 +93,21 @@ export default class CSVReader2 extends Component {
         }
 
         var counts = new Map();
-        counts.set("total", this.state.books.length)
+        var authors = this.getAuthorCount();
+        counts.set("total", [this.state.books.length, 100, authors, 100])
+        var visited = new Set()
 
         this.state.books.forEach((book) => {
             var gender = this.state.genders.get(book.data["Author"])
-            counts.set(gender, (counts.get(gender) || 0) + 1);
+            var value = (counts.has(gender) ? counts.get(gender) : [0, 0, 0, 0])
+            value[0] = value[0] + 1
+            value[1] = value[0] * 100 / this.state.books.length
+            if (!visited.has(book.data["Author"])) {
+                visited.add(book.data["Author"])
+                value[2] = value[2] + 1
+                value[3] = value[2] * 100 / authors
+            }
+            counts.set(gender, value)
         });
 
 
@@ -90,7 +116,10 @@ export default class CSVReader2 extends Component {
             return (
                 <tr key={index}>
                     <td>{genderCount[0]}</td>
-                    <td>{genderCount[1]}</td>
+                    <td>{genderCount[1][0]}</td>
+                    <td>{Math.round(genderCount[1][1])}</td>
+                    <td>{genderCount[1][2]}</td>
+                    <td>{Math.round(genderCount[1][3])}</td>
                 </tr>
 
             )
@@ -114,7 +143,7 @@ export default class CSVReader2 extends Component {
                     config={{
                         header: true,
                         skipEmptyLines: 'greedy',
-                        preview: 10
+                        preview: 10000
                     }}
                 >
                     <span>Drop exported Goodreads CSV file here or click to upload.</span>
@@ -135,7 +164,11 @@ export default class CSVReader2 extends Component {
                     >
                         <thead>
                             <tr><td>Gender</td>
-                                <td>Count</td></tr>
+                                <td>Books(total)</td>
+                                <td>Books(percent)</td>
+                                <td>Authors(total)</td>
+                                <td>Authors(percent)</td>
+                                </tr>
                         </thead>
                         <tbody>
                             {this.renderBooksData()}
